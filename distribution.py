@@ -148,7 +148,7 @@ def log_base_partition_function(alpha):
   # approximates the partition function. This was produced by running
   # the script in fit_partition_spline.py
   with util.get_resource_as_file(
-      'robust_loss/data/partition_spline.npz') as spline_file:
+      'robust_loss_pytorch/data/partition_spline.npz') as spline_file:
     with np.load(spline_file, allow_pickle=False) as f:
       x_scale = torch.as_tensor(f['x_scale'])
       values = torch.as_tensor(f['values'])

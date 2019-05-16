@@ -161,7 +161,7 @@ class WaveletTest(tf.test.TestCase):
       A tuple containing and image, its decomposition, and its wavelet type.
     """
     with util.get_resource_as_file(
-        'robust_loss/data/wavelet_golden.mat') as golden_filename:
+        'robust_loss_pytorch/data/wavelet_golden.mat') as golden_filename:
       data = scipy.io.loadmat(golden_filename)
     im = np.float32(data['I_color'])
     pyr_true = data['pyr_color'][0, :].tolist()
@@ -187,7 +187,7 @@ class WaveletTest(tf.test.TestCase):
     """Tests visualize() (and implicitly flatten())."""
     _, pyr, _ = self._load_golden_data()
     vis = wavelet.visualize(pyr).detach().numpy()
-    golden_vis_filename = 'robust_loss/data/wavelet_vis_golden.png'
+    golden_vis_filename = 'robust_loss_pytorch/data/wavelet_vis_golden.png'
     vis_true = np.asarray(
         PIL.Image.open(util.get_resource_filename(golden_vis_filename)))
     # Allow for some slack as quantization may exaggerate some errors.
