@@ -19,21 +19,23 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-import tensorflow as tf
 import torch
 from robust_loss_pytorch import general
 
 
-class LossfunTest(tf.test.TestCase):
+class TestLossfun:
 
   def setUp(self):
-    super(LossfunTest, self).setUp()
     np.random.seed(0)
 
   def _assert_all_close_according_to_type(self, a, b):
     """AssertAllClose() with tighter thresholds for float64 than float32."""
-    self.assertAllCloseAccordingToType(
-        a, b, rtol=1e-15, atol=1e-15, float_rtol=1e-6, float_atol=1e-6)
+    if a.dtype == np.float32:
+      np.testing.assert_allclose(a, b, rtol = 1e-6, atol=1e-6)
+    elif a.dtype == np.float64:
+      np.testing.assert_allclose(a, b, rtol = 1e-15, atol=1e-15)
+    else:
+      assert False
 
   def _precompute_lossfun_inputs(self, float_dtype):
     """Precompute a loss and its derivatives for random inputs and parameters.
@@ -98,7 +100,7 @@ class LossfunTest(tf.test.TestCase):
     alpha = float_dtype(np.random.normal(size=n))
     scale = float_dtype(np.exp(np.random.normal(size=n)))
     y = general.lossfun(x, alpha, scale)
-    self.assertDTypeEqual(y, float_dtype)
+    np.testing.assert_equal(y.detach().numpy().dtype, float_dtype)
 
   def testLossfunPreservesDtypeSingle(self):
     self._lossfun_preserves_dtype(np.float32)
@@ -112,7 +114,7 @@ class LossfunTest(tf.test.TestCase):
     d_x[~np.isfinite(d_x)] = 0  # This is just to suppress a warning below.
     mask = np.isfinite(alpha) & (
         np.abs(d_x) > (100. * np.finfo(float_dtype).eps))
-    self.assertAllEqual(np.sign(d_x[mask]), np.sign(x[mask]))
+    np.testing.assert_equal(np.sign(d_x[mask]), np.sign(x[mask]))
 
   def testDerivativeIsMonotonicWrtXSingle(self):
     self._derivative_is_monotonic_wrt_x(np.float32)
@@ -123,7 +125,7 @@ class LossfunTest(tf.test.TestCase):
   def _loss_is_near_zero_at_origin(self, float_dtype):
     # Check that the loss is near-zero when x is near-zero.
     _, loss, x, _, _, _, _, _ = self._precompute_lossfun_inputs(float_dtype)
-    self.assertTrue(np.all(np.abs(loss[np.abs(x) < 1e-5]) < 1e-5))
+    np.testing.assert_(np.all(np.abs(loss[np.abs(x) < 1e-5]) < 1e-5))
 
   def testLossIsNearZeroAtOriginSingle(self):
     self._loss_is_near_zero_at_origin(np.float32)
@@ -137,7 +139,7 @@ class LossfunTest(tf.test.TestCase):
     _, loss, x, _, scale, _, _, _ = self._precompute_lossfun_inputs(float_dtype)
     mask = np.abs(x) < (0.5 * scale)
     loss_quad = 0.5 * np.square(x / scale)
-    self.assertAllClose(loss_quad[mask], loss[mask], rtol=1e-5, atol=1e-2)
+    np.testing.assert_allclose(loss_quad[mask], loss[mask], rtol=1e-5, atol=1e-2)
 
   def testLossIsQuadraticNearOriginSingle(self):
     self._loss_is_quadratic_near_origin(np.float32)
@@ -151,7 +153,7 @@ class LossfunTest(tf.test.TestCase):
     mask = alpha < 0.
     min_val = np.finfo(float_dtype).min
     alpha_clipped = np.maximum(min_val, alpha[mask])
-    self.assertTrue(
+    np.testing.assert_(
         np.all(loss[mask] <= ((alpha_clipped - 2.) / alpha_clipped)))
 
   def testLossIsBoundedWhenAlphaIsNegativeSingle(self):
@@ -165,7 +167,7 @@ class LossfunTest(tf.test.TestCase):
     _, _, x, alpha, scale, d_x, _, _ = self._precompute_lossfun_inputs(
         float_dtype)
     mask = np.isfinite(alpha) & (alpha <= 2)
-    self.assertTrue(
+    np.testing.assert_(
         np.all((np.abs(d_x[mask]) <=
                 ((np.abs(x[mask]) +
                   (100. * np.finfo(float_dtype).eps)) / scale[mask]**2))))
@@ -181,7 +183,7 @@ class LossfunTest(tf.test.TestCase):
     _, _, _, alpha, scale, d_x, _, _ = self._precompute_lossfun_inputs(
         float_dtype)
     mask = np.isfinite(alpha) & (alpha <= 1)
-    self.assertTrue(
+    np.testing.assert_(
         np.all((np.abs(d_x[mask]) <=
                 ((1. + (100. * np.finfo(float_dtype).eps)) / scale[mask]))))
 
@@ -196,7 +198,7 @@ class LossfunTest(tf.test.TestCase):
     _, _, _, alpha, _, _, d_alpha, _ = self._precompute_lossfun_inputs(
         float_dtype)
     mask = np.isfinite(alpha)
-    self.assertTrue(np.all(d_alpha[mask] > (-100. * np.finfo(float_dtype).eps)))
+    np.testing.assert_(np.all(d_alpha[mask] > (-100. * np.finfo(float_dtype).eps)))
 
   def testAlphaDerivativeIsPositiveSingle(self):
     self._alpha_derivative_is_positive(np.float32)
@@ -209,7 +211,7 @@ class LossfunTest(tf.test.TestCase):
     _, _, _, alpha, _, _, _, d_scale = self._precompute_lossfun_inputs(
         float_dtype)
     mask = np.isfinite(alpha)
-    self.assertTrue(np.all(d_scale[mask] < (100. * np.finfo(float_dtype).eps)))
+    np.testing.assert_(np.all(d_scale[mask] < (100. * np.finfo(float_dtype).eps)))
 
   def testScaleDerivativeIsNegativeSingle(self):
     self._scale_derivative_is_negative(np.float32)
@@ -227,7 +229,7 @@ class LossfunTest(tf.test.TestCase):
 
     # Compute the scaled loss.
     loss_scaled = general.lossfun(mult * x, alpha, mult * scale)
-    self.assertAllClose(loss, loss_scaled, atol=1e-4, rtol=1e-4)
+    np.testing.assert_allclose(loss, loss_scaled, atol=1e-4, rtol=1e-4)
 
   def testLossIsScaleInvariantSingle(self):
     self._loss_is_scale_invariant(np.float32)
@@ -242,7 +244,7 @@ class LossfunTest(tf.test.TestCase):
     scale = float_dtype(1.7)
 
     # Our loss.
-    loss = general.lossfun(x, alpha, scale)
+    loss = general.lossfun(x, alpha, scale).detach().numpy()
 
     # Welsch/Leclerc loss.
     loss_true = (1. - np.exp(-0.5 * (x / scale)**2))
@@ -262,7 +264,7 @@ class LossfunTest(tf.test.TestCase):
     scale = float_dtype(1.7)
 
     # Our loss.
-    loss = general.lossfun(x, alpha, scale)
+    loss = general.lossfun(x, alpha, scale).detach().numpy()
 
     # Geman-McClure loss.
     loss_true = 2. * (x / scale)**2 / ((x / scale)**2 + 4.)
@@ -282,7 +284,7 @@ class LossfunTest(tf.test.TestCase):
     scale = float_dtype(1.7)
 
     # Our loss.
-    loss = general.lossfun(x, alpha, scale)
+    loss = general.lossfun(x, alpha, scale).detach().numpy()
 
     # Cauchy/Lorentzian loss.
     loss_true = (np.log(0.5 * (x / scale)**2 + 1.))
@@ -302,7 +304,7 @@ class LossfunTest(tf.test.TestCase):
     scale = float_dtype(1.7)
 
     # Our loss.
-    loss = general.lossfun(x, alpha, scale)
+    loss = general.lossfun(x, alpha, scale).detach().numpy()
 
     # Charbonnier loss.
     loss_true = (np.sqrt((x / scale)**2 + 1.) - 1.)
@@ -322,7 +324,7 @@ class LossfunTest(tf.test.TestCase):
     scale = float_dtype(1.7)
 
     # Our loss.
-    loss = general.lossfun(x, alpha, scale)
+    loss = general.lossfun(x, alpha, scale).detach().numpy()
 
     # L2 Loss.
     loss_true = 0.5 * (x / scale)**2
@@ -342,7 +344,7 @@ class LossfunTest(tf.test.TestCase):
     scale = float_dtype(1.7)
 
     # Our loss.
-    loss = general.lossfun(x, alpha, scale)
+    loss = general.lossfun(x, alpha, scale).detach().numpy()
 
     # The true loss.
     loss_true = np.square(np.square(x / scale)) / 8. + np.square(x / scale) / 2.
@@ -362,7 +364,7 @@ class LossfunTest(tf.test.TestCase):
     scale = float_dtype(1.7)
 
     # Our loss.
-    loss = general.lossfun(x, alpha, scale)
+    loss = general.lossfun(x, alpha, scale).detach().numpy()
 
     # The true loss.
     loss_true = (np.exp(0.5 * np.square(x / scale)) - 1.)
@@ -383,10 +385,10 @@ class LossfunTest(tf.test.TestCase):
     scale = float_dtype(1.7)
     for alpha in [-4, -2, -0.2, -0.01, 0.01, 0.2, 1, 1.99, 2, 2.01, 4]:
       alpha = float_dtype(alpha)
-      loss = general.lossfun(x, alpha, scale)
-      loss_approx = general.lossfun(x, alpha, scale, approximate=True)
-      self.assertAllClose(
-          loss, loss_approx, rtol=1e-5, atol=1e-4, msg='alpha=%g' % (alpha))
+      loss = general.lossfun(x, alpha, scale).detach().numpy()
+      loss_approx = general.lossfun(x, alpha, scale, approximate=True).detach().numpy()
+      np.testing.assert_allclose(
+          loss, loss_approx, rtol=1e-5, atol=1e-4)
 
   def testApproximateLossIsAccurateSingle(self):
     self._approximate_loss_is_accurate(np.float32)
@@ -427,7 +429,7 @@ class LossfunTest(tf.test.TestCase):
       loss = loss.detach().numpy()
 
       for v in [loss, d_x, d_alpha, d_scale]:
-        self.assertTrue(np.all(np.isfinite(v)))
+        np.testing.assert_(np.all(np.isfinite(v)))
 
   def testLossAndGradientsAreFiniteSingle(self):
     self._loss_and_gradients_are_finite(np.float32)
@@ -475,7 +477,7 @@ class LossfunTest(tf.test.TestCase):
 
       # Assert that the 95th percentile of errors is <= 1e-2.
       def assert_percentile_close(v1, v2):
-        self.assertLessEqual(np.percentile(np.abs(v1 - v2), 95), 1e-2)
+        np.testing.assert_(np.percentile(np.abs(v1 - v2), 95) <= 1e-2)
 
       n_x = (np.array(general.lossfun(x + step_size, alpha, scale)) -
              loss) / step_size
@@ -497,4 +499,4 @@ class LossfunTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-  tf.test.main()
+  np.testing.run_module_suite()

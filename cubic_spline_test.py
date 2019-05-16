@@ -19,15 +19,13 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-import tensorflow as tf
 import torch
 from robust_loss_pytorch import cubic_spline
 
 
-class CubicSplineTest(tf.test.TestCase):
+class TestCubicSpline:
 
   def setUp(self):
-    super(CubicSplineTest, self).setUp()
     np.random.seed(0)
 
   def _interpolate1d(self, x, values, tangents):
@@ -63,8 +61,8 @@ class CubicSplineTest(tf.test.TestCase):
     x = float_dtype(np.random.normal(size=n))
     values = float_dtype(np.random.normal(size=n))
     tangents = float_dtype(np.random.normal(size=n))
-    y = cubic_spline.interpolate1d(x, values, tangents)
-    self.assertDTypeEqual(y, float_dtype)
+    y = cubic_spline.interpolate1d(x, values, tangents).detach().numpy()
+    np.testing.assert_equal(y.dtype, float_dtype)
 
   def testInterpolationPreservesDtypeSingle(self):
     self._interpolation_preserves_dtype(np.float32)
@@ -78,8 +76,8 @@ class CubicSplineTest(tf.test.TestCase):
     x = np.arange(n, dtype=float_dtype)
     values = float_dtype(np.random.normal(size=n))
     tangents = float_dtype(np.random.normal(size=n))
-    y = cubic_spline.interpolate1d(x, values, tangents)
-    self.assertAllClose(y, values)
+    y = cubic_spline.interpolate1d(x, values, tangents).detach().numpy()
+    np.testing.assert_allclose(y, values)
 
   def testInterpolationReproducesValuesAtKnotsSingle(self):
     self._interpolation_reproduces_values_at_knots(np.float32)
@@ -94,7 +92,7 @@ class CubicSplineTest(tf.test.TestCase):
     values = float_dtype(np.random.normal(size=n))
     tangents = float_dtype(np.random.normal(size=n))
     _, dy_dx = self._interpolate1d(x, values, tangents)
-    self.assertAllClose(dy_dx, tangents)
+    np.testing.assert_allclose(dy_dx, tangents, atol=1e-5, rtol=1e-5)
 
   def testInterpolationReproducesTangentsAtKnotsSingle(self):
     self._interpolation_reproduces_tangents_at_knots(np.float32)
@@ -124,16 +122,16 @@ class CubicSplineTest(tf.test.TestCase):
 
     # Get the interpolated values and derivatives.
     y, dy_dx = self._interpolate1d(x, values, tangents)
-
+    
     # Check that the interpolated values of all queries lies at the midpoint of
     # its surrounding knot values.
     y_true = (values[0:-1] + values[1:]) / 2.
-    self.assertAllClose(y, y_true)
+    np.testing.assert_allclose(y, y_true)
 
     # Check that the derivative of all interpolated values is (fun fact!) 1.5x
     # the numerical difference between adjacent knot values.
     dy_dx_true = 1.5 * (values[1:] - values[0:-1])
-    self.assertAllClose(dy_dx, dy_dx_true)
+    np.testing.assert_allclose(dy_dx, dy_dx_true, atol=1e-5, rtol=1e-5)
 
   def testZeroTangentMidpointValuesAndDerivativesAreCorrectSingle(self):
     self._zero_tangent_midpoint_values_and_derivatives_are_correct(np.float32)
@@ -168,14 +166,14 @@ class CubicSplineTest(tf.test.TestCase):
 
     # Check that the interpolated values of all queries lies between its
     # surrounding knot values.
-    self.assertTrue(
+    np.testing.assert_(
         np.all(((values[0:-1] <= y) & (y <= values[1:]))
                | ((values[0:-1] >= y) & (y >= values[1:]))))
 
     # Check that all derivatives of interpolated values are between 0 and 1.5x
     # the numerical difference between adjacent knot values.
     max_dy_dx = (1.5 + 1e-3) * (values[1:] - values[0:-1])
-    self.assertTrue(
+    np.testing.assert_(
         np.all(((0 <= dy_dx) & (dy_dx <= max_dy_dx))
                | ((0 >= dy_dx) & (dy_dx >= max_dy_dx))))
 
@@ -205,9 +203,9 @@ class CubicSplineTest(tf.test.TestCase):
       bias = np.random.normal()
       values = slope * idx + bias
       tangents = np.ones_like(values) * slope
-      y = cubic_spline.interpolate1d(x, values, tangents)
+      y = cubic_spline.interpolate1d(x, values, tangents).detach().numpy()
       y_true = slope * x + bias
-      self.assertAllClose(y, y_true)
+      np.testing.assert_allclose(y, y_true, atol=1e-5, rtol=1e-5)
 
   def testLinearRampsReproduceCorrectlySingle(self):
     self._linear_ramps_reproduce_correctly(np.float32)
@@ -237,13 +235,13 @@ class CubicSplineTest(tf.test.TestCase):
       # with the slope and bias of the beginning of the spline.
       y_below = cubic_spline.interpolate1d(x_below, values, tangents)
       y_below_true = tangents[0] * x_below + values[0]
-      self.assertAllClose(y_below, y_below_true)
+      np.testing.assert_allclose(y_below, y_below_true)
 
       # Query the spline above its support and check that it's a linear ramp
       # with the slope and bias of the end of the spline.
       y_above = cubic_spline.interpolate1d(x_above, values, tangents)
       y_above_true = tangents[-1] * (x_above - (n - 1)) + values[-1]
-      self.assertAllClose(y_above, y_above_true)
+      np.testing.assert_allclose(y_above, y_above_true)
 
   def testExtrapolationIsLinearSingle(self):
     self._extrapolation_is_linear(np.float32)
@@ -253,4 +251,4 @@ class CubicSplineTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-  tf.test.main()
+  np.testing.run_module_suite()

@@ -21,7 +21,6 @@ from __future__ import print_function
 from absl.testing import parameterized
 import numpy as np
 import scipy.stats
-import tensorflow as tf
 import torch
 from torch.autograd import Variable
 from robust_loss_pytorch import adaptive
@@ -126,10 +125,9 @@ def _generate_wavelet_toy_image_data(image_width, num_samples,
   return samples, reference, color_space, representation
 
 
-class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
+class TestAdaptive(parameterized.TestCase):
 
   def setUp(self):
-    super(AdaptiveTest, self).setUp()
     np.random.seed(0)
 
   @parameterized.named_parameters(('Single', np.float32),
@@ -161,8 +159,8 @@ class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
           scale_init=scale_init)
       alpha = adaptive_lossfun.alpha().detach().numpy()
       scale = adaptive_lossfun.scale().detach().numpy()
-      self.assertAllClose(alpha, true_alpha_init * np.ones_like(alpha))
-      self.assertAllClose(scale, scale_init * np.ones_like(scale))
+      np.testing.assert_allclose(alpha, true_alpha_init * np.ones_like(alpha))
+      np.testing.assert_allclose(scale, scale_init * np.ones_like(scale))
 
   @parameterized.named_parameters(('Single', np.float32),
                                   ('Double', np.float64))
@@ -188,8 +186,8 @@ class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
     alpha = adaptive_lossfun.alpha()
     scale = adaptive_lossfun.scale()
     alpha_init = (alpha_lo + alpha_hi) / 2.
-    self.assertAllClose(alpha, alpha_init * np.ones_like(alpha))
-    self.assertAllClose(scale, scale_init * np.ones_like(alpha))
+    np.testing.assert_allclose(alpha, alpha_init * np.ones_like(alpha))
+    np.testing.assert_allclose(scale, scale_init * np.ones_like(alpha))
 
   def _sample_cauchy_ppf(self, num_samples):
     """Draws ``num_samples'' samples from a Cauchy distribution.
@@ -282,7 +280,7 @@ class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
     alpha = adaptive_lossfun.alpha()[0, :].detach().numpy()
     scale = adaptive_lossfun.scale()[0, :].detach().numpy()
     for a, b in [(alpha, alpha_true), (scale, scale_true), (mu, mu_true)]:
-      self.assertAllClose(a, b * np.ones_like(a), rtol=0.1, atol=0.1)
+      np.testing.assert_allclose(a, b * np.ones_like(a), rtol=0.1, atol=0.1)
 
   @parameterized.named_parameters(('Single', np.float32),
                                   ('Double', np.float64))
@@ -322,12 +320,12 @@ class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
 
     for ldf, a_true in zip(log_df, alpha_true):
       if a_true == 0:
-        self.assertAllClose(ldf, 0., rtol=0.1, atol=0.1)
+        np.testing.assert_allclose(ldf, 0., rtol=0.1, atol=0.1)
       elif a_true == 2:
-        self.assertAllGreater(ldf, 4)
+        np.testing.assert_(np.all(ldf > 4))
     scale /= np.sqrt(2. - (alpha_true / 2.))
     for a, b in [(scale, scale_true), (mu, mu_true)]:
-      self.assertAllClose(a, b * np.ones_like(a), rtol=0.1, atol=0.1)
+      np.testing.assert_allclose(a, b * np.ones_like(a), rtol=0.1, atol=0.1)
 
   @parameterized.named_parameters(('Single', np.float32),
                                   ('Double', np.float64))
@@ -339,9 +337,9 @@ class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
     loss = adaptive_lossfun.lossfun(samples).detach().numpy()
     alpha = adaptive_lossfun.alpha().detach().numpy()
     scale = adaptive_lossfun.scale().detach().numpy()
-    self.assertDTypeEqual(loss, float_dtype)
-    self.assertDTypeEqual(alpha, float_dtype)
-    self.assertDTypeEqual(scale, float_dtype)
+    np.testing.assert_(loss.dtype, float_dtype)
+    np.testing.assert_(alpha.dtype, float_dtype)
+    np.testing.assert_(scale.dtype, float_dtype)
 
   @parameterized.named_parameters(('Single', np.float32),
                                   ('Double', np.float64))
@@ -354,9 +352,9 @@ class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
     loss = adaptive_image_lossfun.lossfun(x).detach().numpy()
     alpha = adaptive_image_lossfun.alpha().detach().numpy()
     scale = adaptive_image_lossfun.scale().detach().numpy()
-    self.assertDTypeEqual(loss, float_dtype)
-    self.assertDTypeEqual(alpha, float_dtype)
-    self.assertDTypeEqual(scale, float_dtype)
+    np.testing.assert_(loss.dtype, float_dtype)
+    np.testing.assert_(alpha.dtype, float_dtype)
+    np.testing.assert_(scale.dtype, float_dtype)
 
   @parameterized.named_parameters(('Adaptive', False), ('StudentsT', True))
   def testImageLossfunPreservesImageSize(self, use_students_t):
@@ -368,14 +366,14 @@ class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
         image_size, float_dtype, use_students_t=use_students_t)
     loss = adaptive_image_lossfun.lossfun(x).detach().numpy()
     scale = adaptive_image_lossfun.scale().detach().numpy()
-    self.assertEqual(tuple(loss.shape[1:]), image_size)
-    self.assertEqual(tuple(scale.shape), image_size)
+    np.testing.assert_(tuple(loss.shape[1:]) == image_size)
+    np.testing.assert_(tuple(scale.shape) == image_size)
     if use_students_t:
       df = adaptive_image_lossfun.df().detach().numpy()
-      self.assertEqual(tuple(df.shape), image_size)
+      np.testing.assert_(tuple(df.shape) == image_size)
     else:
       alpha = adaptive_image_lossfun.alpha().detach().numpy()
-      self.assertEqual(tuple(alpha.shape), image_size)
+      np.testing.assert_(tuple(alpha.shape) == image_size)
 
   @parameterized.named_parameters(('Wavelet', _generate_wavelet_toy_image_data),
                                   ('Pixel', _generate_pixel_toy_image_data))
@@ -422,8 +420,8 @@ class AdaptiveTest(parameterized.TestCase, tf.test.TestCase):
       optimizer.step()
 
     prediction = prediction.detach().numpy()
-    self.assertAllClose(prediction, reference, rtol=0.01, atol=0.01)
+    np.testing.assert_allclose(prediction, reference, rtol=0.01, atol=0.01)
 
 
 if __name__ == '__main__':
-  tf.test.main()
+  np.testing.run_module_suite()

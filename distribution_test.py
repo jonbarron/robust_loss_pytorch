@@ -20,15 +20,13 @@ from __future__ import print_function
 
 import numpy as np
 import scipy.stats
-import tensorflow as tf
 import torch
 from robust_loss_pytorch import distribution
 
 
-class DistributionTest(tf.test.TestCase):
+class TestDistribution:
 
   def setUp(self):
-    super(DistributionTest, self).setUp()
     torch.manual_seed(0)
     np.random.seed(0)
 
@@ -51,8 +49,8 @@ class DistributionTest(tf.test.TestCase):
     dy2 = var_x2.grad.detach().numpy()
     y2 = y2.detach().numpy()
 
-    self.assertAllClose(y1, y2)
-    self.assertAllClose(dy1, dy2)
+    np.testing.assert_allclose(y1, y2, atol=1e-6, rtol=1e-6)
+    np.testing.assert_allclose(dy1, dy2, atol=1e-6, rtol=1e-6)
 
   def testAnalyaticalPartitionIsCorrect(self):
     """Tests _analytical_base_partition_function against some golden data."""
@@ -77,21 +75,21 @@ class DistributionTest(tf.test.TestCase):
         (13, 2, 2.063452243), (15, 2, 2.056990258))  # pyformat: disable
     for numer, denom, z_true in ground_truth_rational_partitions:
       z = distribution.analytical_base_partition_function(numer, denom)
-      self.assertAllClose(z, z_true, atol=1e-9, rtol=1e-9)
+      np.testing.assert_allclose(z, z_true, atol=1e-9, rtol=1e-9)
 
   def testSplineCurveInverseIsCorrect(self):
     """Tests that the inverse curve is indeed the inverse of the curve."""
     x_knot = np.arange(0, 16, 0.01, dtype=np.float64)
     alpha = distribution.inv_partition_spline_curve(x_knot)
     x_recon = distribution.partition_spline_curve(alpha)
-    self.assertAllClose(x_recon, x_knot)
+    np.testing.assert_allclose(x_recon, x_knot)
 
   def _log_partition_infinity_is_accurate(self, float_dtype):
     """Tests that the partition function is accurate at infinity."""
     alpha = float_dtype(float('inf'))
     log_z_true = np.float64(0.70526025442)  # From mathematica.
     log_z = distribution.log_base_partition_function(alpha)
-    self.assertAllClose(log_z, log_z_true, atol=1e-7, rtol=1e-7)
+    np.testing.assert_allclose(log_z, log_z_true, atol=1e-7, rtol=1e-7)
 
   def testLogPartitionInfinityIsAccurateSingle(self):
     self._log_partition_infinity_is_accurate(np.float32)
@@ -109,7 +107,7 @@ class DistributionTest(tf.test.TestCase):
     ]
     log_zs = distribution.log_base_partition_function(
         float_dtype(np.array(numers)) / float_dtype(denom))
-    self.assertAllClose(log_zs, log_zs_true, atol=1e-7, rtol=1e-7)
+    np.testing.assert_allclose(log_zs, log_zs_true, atol=1e-7, rtol=1e-7)
 
   def testLogPartitionFractionsAreAccurateSingle(self):
     self._log_partition_fractions_are_accurate(np.float32)
@@ -127,7 +125,7 @@ class DistributionTest(tf.test.TestCase):
     # Perform the Kolmogorov-Smirnov test against a Cauchy distribution.
     ks_statistic = scipy.stats.kstest(samples, 'cauchy',
                                       (0., scale * np.sqrt(2.))).statistic
-    self.assertLess(ks_statistic, 0.01)
+    np.testing.assert_(ks_statistic < 0.01)
 
   def testAlphaZeroSamplesMatchACauchyDistributionSingle(self):
     self._alpha_zero_samples_match_a_cauchy_distribution(np.float32)
@@ -144,7 +142,7 @@ class DistributionTest(tf.test.TestCase):
         scale * np.ones(num_samples, dtype=float_dtype))
     # Perform the Kolmogorov-Smirnov test against a normal distribution.
     ks_statistic = scipy.stats.kstest(samples, 'norm', (0., scale)).statistic
-    self.assertLess(ks_statistic, 0.01)
+    np.testing.assert_(ks_statistic < 0.01)
 
   def testAlphaTwoSamplesMatchANormalDistributionSingle(self):
     self._alpha_two_samples_match_a_normal_distribution(np.float32)
@@ -159,7 +157,7 @@ class DistributionTest(tf.test.TestCase):
     alpha = np.array(0., float_dtype)
     nll = distribution.nllfun(x, alpha, scale)
     nll_true = -scipy.stats.cauchy(0., scale * np.sqrt(2.)).logpdf(x)
-    self.assertAllClose(nll, nll_true)
+    np.testing.assert_allclose(nll, nll_true, atol=1e-6, rtol=1e-6)
 
   def testAlphaZeroNllsMatchACauchyDistributionSingle(self):
     self._alpha_zero_nlls_match_a_cauchy_distribution(np.float32)
@@ -174,7 +172,7 @@ class DistributionTest(tf.test.TestCase):
     alpha = np.array(2., float_dtype)
     nll = distribution.nllfun(x, alpha, scale)
     nll_true = -scipy.stats.norm(0., scale).logpdf(x)
-    self.assertAllClose(nll, nll_true)
+    np.testing.assert_allclose(nll, nll_true, atol=1e-6, rtol=1e-6)
 
   def testAlphaTwoNllsMatchANormalDistributionSingle(self):
     self._alpha_two_nlls_match_a_normal_distribution(np.float32)
@@ -191,7 +189,7 @@ class DistributionTest(tf.test.TestCase):
       nll = distribution.nllfun(x, np.array(alpha),
                                 np.array(scale)).detach().numpy()
       pdf_sum = np.sum(np.exp(-nll)) * (x[1] - x[0])
-      self.assertAllClose(pdf_sum, 1., atol=0.005, rtol=0.005)
+      np.testing.assert_allclose(pdf_sum, 1., atol=0.005, rtol=0.005)
 
   def testPdfIntegratesToOneSingle(self):
     self._pdf_integrates_to_one(np.float32)
@@ -206,7 +204,7 @@ class DistributionTest(tf.test.TestCase):
     alpha = float_dtype(np.exp(np.random.normal(size=n)))
     scale = float_dtype(np.exp(np.random.normal(size=n)))
     y = distribution.nllfun(x, alpha, scale).detach().numpy()
-    self.assertDTypeEqual(y, float_dtype)
+    np.testing.assert_(y.dtype, float_dtype)
 
   def testNllfunPreservesDtypeSingle(self):
     self._nllfun_preserves_dtype(np.float32)
@@ -219,8 +217,8 @@ class DistributionTest(tf.test.TestCase):
     n = 16
     alpha = float_dtype(np.exp(np.random.normal(size=n)))
     scale = float_dtype(np.exp(np.random.normal(size=n)))
-    y = distribution.draw_samples(alpha, scale)
-    self.assertDTypeEqual(y, float_dtype)
+    y = distribution.draw_samples(alpha, scale).detach().numpy()
+    np.testing.assert_(y.dtype, float_dtype)
 
   def testSamplingPreservesDtypeSingle(self):
     self._sampling_preserves_dtype(np.float32)
@@ -230,4 +228,4 @@ class DistributionTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-  tf.test.main()
+  np.testing.run_module_suite()
