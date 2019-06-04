@@ -125,149 +125,158 @@ def inv_partition_spline_curve(x):
   return alpha
 
 
-def log_base_partition_function(alpha):
-  r"""Approximate the distribution's log-partition function with a 1D spline.
+class Distribution():
+  # This is only a class so that we can pre-load the partition function spline.
 
-  Because the partition function (Z(\alpha) in the paper) of the distribution is
-  difficult to model analytically, we approximate it with a (transformed) cubic
-  hermite spline: Each alpha is pushed through a nonlinearity before being used
-  to interpolate into a spline, which allows us to use a relatively small spline
-  to accurately model the log partition function over the range of all
-  non-negative input values.
+  def __init__(self):
+    # Load the values, tangents, and x-coordinate scaling of a spline that
+    # approximates the partition function. This was produced by running
+    # the script in fit_partition_spline.py
+    with util.get_resource_as_file(
+        'robust_loss_pytorch/data/partition_spline.npz') as spline_file:
+      with np.load(spline_file, allow_pickle=False) as f:
+        self._spline_x_scale = torch.tensor(f['x_scale'])
+        self._spline_values = torch.tensor(f['values'])
+        self._spline_tangents = torch.tensor(f['tangents'])
 
-  Args:
-    alpha: A tensor or scalar of single or double precision floats containing
-      the set of alphas for which we would like an approximate log partition
-      function. Must be non-negative, as the partition function is undefined
-      when alpha < 0.
+  def log_base_partition_function(self, alpha):
+    r"""Approximate the distribution's log-partition function with a 1D spline.
 
-  Returns:
-    An approximation of log(Z(alpha)) accurate to within 1e-6
-  """
-  # Load the values, tangents, and x-coordinate scaling of a spline that
-  # approximates the partition function. This was produced by running
-  # the script in fit_partition_spline.py
-  with util.get_resource_as_file(
-      'robust_loss_pytorch/data/partition_spline.npz') as spline_file:
-    with np.load(spline_file, allow_pickle=False) as f:
-      x_scale = torch.as_tensor(f['x_scale'])
-      values = torch.as_tensor(f['values'])
-      tangents = torch.as_tensor(f['tangents'])
+    Because the partition function (Z(\alpha) in the paper) of the distribution
+    is difficult to model analytically, we approximate it with a (transformed)
+    cubic hermite spline: Each alpha is pushed through a nonlinearity before
+    being used to interpolate into a spline, which allows us to use a relatively
+    small spline to accurately model the log partition function over the range
+    of all non-negative input values.
 
-  alpha = torch.as_tensor(alpha)
-  assert (alpha >= 0).all()
-  # Transform `alpha` to the form expected by the spline.
-  x = partition_spline_curve(alpha)
-  # Interpolate into the spline.
-  return cubic_spline.interpolate1d(x * x_scale, values, tangents)
+    Args:
+      alpha: A tensor or scalar of single or double precision floats containing
+        the set of alphas for which we would like an approximate log partition
+        function. Must be non-negative, as the partition function is undefined
+        when alpha < 0.
 
+    Returns:
+      An approximation of log(Z(alpha)) accurate to within 1e-6
+    """
+    alpha = torch.as_tensor(alpha)
+    assert (alpha >= 0).all()
+    # Transform `alpha` to the form expected by the spline.
+    x = partition_spline_curve(alpha)
+    # Interpolate into the spline.
+    return cubic_spline.interpolate1d(x * self._spline_x_scale.to(x),
+                                      self._spline_values.to(x),
+                                      self._spline_tangents.to(x))
 
-def nllfun(x, alpha, scale):
-  r"""Implements the negative log-likelihood (NLL).
+  def nllfun(self, x, alpha, scale):
+    r"""Implements the negative log-likelihood (NLL).
 
-  Specifically, we implement -log(p(x | 0, \alpha, c) of Equation 16 in the
-  paper as nllfun(x, alpha, shape).
+    Specifically, we implement -log(p(x | 0, \alpha, c) of Equation 16 in the
+    paper as nllfun(x, alpha, shape).
 
-  Args:
-    x: The residual for which the NLL is being computed. x can have any shape,
-      and alpha and scale will be broadcasted to match x's shape if necessary.
-      Must be a tensor or numpy array of floats.
-    alpha: The shape parameter of the NLL (\alpha in the paper), where more
-      negative values cause outliers to "cost" more and inliers to "cost" less.
-      Alpha can be any non-negative value, but the gradient of the NLL with
-      respect to alpha has singularities at 0 and 2 so you may want to limit
-      usage to (0, 2) during gradient descent. Must be a tensor or numpy array
-      of floats. Varying alpha in that range allows for smooth interpolation
-      between a Cauchy distribution (alpha = 0) and a Normal distribution (alpha
-      = 2) similar to a Student's T distribution.
-    scale: The scale parameter of the loss. When |x| < scale, the NLL is like
-      that of a (possibly unnormalized) normal distribution, and when |x| >
-      scale the NLL takes on a different shape according to alpha. Must be a
-      tensor or numpy array of floats.
+    Args:
+      x: The residual for which the NLL is being computed. x can have any shape,
+        and alpha and scale will be broadcasted to match x's shape if necessary.
+        Must be a tensor or numpy array of floats.
+      alpha: The shape parameter of the NLL (\alpha in the paper), where more
+        negative values cause outliers to "cost" more and inliers to "cost"
+        less. Alpha can be any non-negative value, but the gradient of the NLL
+        with respect to alpha has singularities at 0 and 2 so you may want to
+        limit usage to (0, 2) during gradient descent. Must be a tensor or numpy
+        array of floats. Varying alpha in that range allows for smooth
+        interpolation between a Cauchy distribution (alpha = 0) and a Normal
+        distribution (alpha = 2) similar to a Student's T distribution.
+      scale: The scale parameter of the loss. When |x| < scale, the NLL is like
+        that of a (possibly unnormalized) normal distribution, and when |x| >
+        scale the NLL takes on a different shape according to alpha. Must be a
+        tensor or numpy array of floats.
 
-  Returns:
-    The NLLs for each element of x, in the same shape and precision as x.
-  """
-  # `scale` and `alpha` must have the same type as `x`.
-  x = torch.as_tensor(x)
-  alpha = torch.as_tensor(alpha)
-  scale = torch.as_tensor(scale)
-  assert (alpha >= 0).all()
-  assert (scale >= 0).all()
-  float_dtype = x.dtype
-  assert alpha.dtype == float_dtype
-  assert scale.dtype == float_dtype
+    Returns:
+      The NLLs for each element of x, in the same shape and precision as x.
+    """
+    # `scale` and `alpha` must have the same type as `x`.
+    x = torch.as_tensor(x)
+    alpha = torch.as_tensor(alpha)
+    scale = torch.as_tensor(scale)
+    assert (alpha >= 0).all()
+    assert (scale >= 0).all()
+    float_dtype = x.dtype
+    assert alpha.dtype == float_dtype
+    assert scale.dtype == float_dtype
 
-  loss = general.lossfun(x, alpha, scale, approximate=False)
-  log_partition = torch.log(scale) + log_base_partition_function(alpha)
-  nll = loss + log_partition
-  return nll
+    loss = general.lossfun(x, alpha, scale, approximate=False)
+    log_partition = torch.log(scale) + self.log_base_partition_function(alpha)
+    nll = loss + log_partition
+    return nll
 
+  def draw_samples(self, alpha, scale):
+    r"""Draw samples from the robust distribution.
 
-def draw_samples(alpha, scale):
-  r"""Draw samples from the robust distribution.
+    This function implements Algorithm 1 the paper. This code is written to
+    allow
+    for sampling from a set of different distributions, each parametrized by its
+    own alpha and scale values, as opposed to the more standard approach of
+    drawing N samples from the same distribution. This is done by repeatedly
+    performing N instances of rejection sampling for each of the N distributions
+    until at least one proposal for each of the N distributions has been
+    accepted.
+    All samples are drawn with a zero mean, to use a non-zero mean just add each
+    mean to each sample.
 
-  This function implements Algorithm 1 the paper. This code is written to allow
-  for sampling from a set of different distributions, each parametrized by its
-  own alpha and scale values, as opposed to the more standard approach of
-  drawing N samples from the same distribution. This is done by repeatedly
-  performing N instances of rejection sampling for each of the N distributions
-  until at least one proposal for each of the N distributions has been accepted.
-  All samples are drawn with a zero mean, to use a non-zero mean just add each
-  mean to each sample.
+    Args:
+      alpha: A tensor/scalar or numpy array/scalar of floats where each element
+        is the shape parameter of that element's distribution.
+      scale: A tensor/scalar or numpy array/scalar of floats where each element
+        is the scale parameter of that element's distribution. Must be the same
+        shape as `alpha`.
 
-  Args:
-    alpha: A tensor/scalar or numpy array/scalar of floats where each element is
-      the shape parameter of that element's distribution.
-    scale: A tensor/scalar or numpy array/scalar of floats where each element is
-      the scale parameter of that element's distribution. Must be the same shape
-      as `alpha`.
+    Returns:
+      A tensor with the same shape and precision as `alpha` and `scale` where
+      each element is a sample drawn from the distribution specified for that
+      element by `alpha` and `scale`.
+    """
+    alpha = torch.as_tensor(alpha)
+    scale = torch.as_tensor(scale)
+    assert (alpha >= 0).all()
+    assert (scale >= 0).all()
+    float_dtype = alpha.dtype
+    assert scale.dtype == float_dtype
 
-  Returns:
-    A tensor with the same shape and precision as `alpha` and `scale` where
-    each element is a sample drawn from the distribution specified for that
-    element by `alpha` and `scale`.
-  """
-  alpha = torch.as_tensor(alpha)
-  scale = torch.as_tensor(scale)
-  assert (alpha >= 0).all()
-  assert (scale >= 0).all()
-  float_dtype = alpha.dtype
-  assert scale.dtype == float_dtype
+    cauchy = torch.distributions.cauchy.Cauchy(0., np.sqrt(2.))
+    uniform = torch.distributions.uniform.Uniform(0, 1)
+    samples = torch.zeros_like(alpha)
+    accepted = torch.zeros(alpha.shape).type(torch.uint8)
+    while not accepted.type(torch.uint8).all():
+      # Draw N samples from a Cauchy, our proposal distribution.
+      cauchy_sample = torch.reshape(
+          cauchy.sample((np.prod(alpha.shape),)), alpha.shape)
+      cauchy_sample = cauchy_sample.type(alpha.dtype)
 
-  cauchy = torch.distributions.cauchy.Cauchy(0., np.sqrt(2.))
-  uniform = torch.distributions.uniform.Uniform(0, 1)
-  samples = torch.zeros_like(alpha)
-  accepted = torch.zeros(alpha.shape).type(torch.uint8)
-  while not accepted.type(torch.uint8).all():
-    # Draw N samples from a Cauchy, our proposal distribution.
-    cauchy_sample = torch.reshape(
-        cauchy.sample((np.prod(alpha.shape),)), alpha.shape)
-    cauchy_sample = cauchy_sample.type(alpha.dtype)
+      # Compute the likelihood of each sample under its target distribution.
+      nll = self.nllfun(cauchy_sample,
+                        torch.as_tensor(alpha).to(cauchy_sample),
+                        torch.tensor(1).to(cauchy_sample))
 
-    # Compute the likelihood of each sample under its target distribution.
-    nll = nllfun(cauchy_sample, torch.as_tensor(alpha),
-                 torch.tensor(1.).type(float_dtype))
+      # Bound the NLL. We don't use the approximate loss as it may cause
+      # unpredictable behavior in the context of sampling.
+      nll_bound = general.lossfun(
+          cauchy_sample,
+          torch.tensor(0., dtype=cauchy_sample.dtype),
+          torch.tensor(1., dtype=cauchy_sample.dtype),
+          approximate=False) + self.log_base_partition_function(alpha)
 
-    # Bound the NLL. We don't use the approximate loss as it may cause
-    # unpredictable behavior in the context of sampling.
-    nll_bound = general.lossfun(
-        cauchy_sample, 0., 1.,
-        approximate=False) + log_base_partition_function(alpha)
+      # Draw N samples from a uniform distribution, and use each uniform sample
+      # to decide whether or not to accept each proposal sample.
+      uniform_sample = torch.reshape(
+          uniform.sample((np.prod(alpha.shape),)), alpha.shape)
+      uniform_sample = uniform_sample.type(alpha.dtype)
+      accept = uniform_sample <= torch.exp(nll_bound - nll)
 
-    # Draw N samples from a uniform distribution, and use each uniform sample
-    # to decide whether or not to accept each proposal sample.
-    uniform_sample = torch.reshape(
-        uniform.sample((np.prod(alpha.shape),)), alpha.shape)
-    uniform_sample = uniform_sample.type(alpha.dtype)
-    accept = uniform_sample <= torch.exp(nll_bound - nll)
+      # If a sample is accepted, replace its element in `samples` with the
+      # proposal sample, and set its bit in `accepted` to True.
+      samples = torch.where(accept, cauchy_sample, samples)
+      accepted = accepted | accept
 
-    # If a sample is accepted, replace its element in `samples` with the
-    # proposal sample, and set its bit in `accepted` to True.
-    samples = torch.where(accept, cauchy_sample, samples)
-    accepted = accepted | accept
-
-  # Because our distribution is a location-scale family, we sample from
-  # p(x | 0, \alpha, 1) and then scale each sample by `scale`.
-  samples *= scale
-  return samples
+    # Because our distribution is a location-scale family, we sample from
+    # p(x | 0, \alpha, 1) and then scale each sample by `scale`.
+    samples *= scale
+    return samples

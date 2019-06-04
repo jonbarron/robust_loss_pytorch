@@ -128,11 +128,13 @@ def _generate_wavelet_toy_image_data(image_width, num_samples,
 class TestAdaptive(parameterized.TestCase):
 
   def setUp(self):
+    super(TestAdaptive, self).setUp()
     np.random.seed(0)
 
-  @parameterized.named_parameters(('Single', np.float32),
-                                  ('Double', np.float64))
-  def testInitialAlphaAndScaleAreCorrect(self, float_dtype):
+  @parameterized.named_parameters(
+      ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
+      ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
+  def testInitialAlphaAndScaleAreCorrect(self, float_dtype, device):
     """Tests that `alpha` and `scale` are initialized as expected."""
     for i in range(8):
       # Generate random ranges for alpha and scale.
@@ -152,30 +154,32 @@ class TestAdaptive(parameterized.TestCase):
       adaptive_lossfun = adaptive.AdaptiveLossFunction(
           10,
           float_dtype,
+          device,
           alpha_lo=alpha_lo,
           alpha_hi=alpha_hi,
           alpha_init=alpha_init,
           scale_lo=scale_lo,
           scale_init=scale_init)
-      alpha = adaptive_lossfun.alpha().detach().numpy()
-      scale = adaptive_lossfun.scale().detach().numpy()
+      alpha = adaptive_lossfun.alpha().cpu().detach().numpy()
+      scale = adaptive_lossfun.scale().cpu().detach().numpy()
       np.testing.assert_allclose(alpha, true_alpha_init * np.ones_like(alpha))
       np.testing.assert_allclose(scale, scale_init * np.ones_like(scale))
 
-  @parameterized.named_parameters(('Single', np.float32),
-                                  ('Double', np.float64))
-  def testFixedAlphaAndScaleAreCorrect(self, float_dtype):
+  @parameterized.named_parameters(
+      ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
+      ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
+  def testFixedAlphaAndScaleAreCorrect(self, float_dtype, device):
     """Tests that fixed alphas and scales do not change during optimization)."""
     alpha_lo = np.random.uniform() * 2.
     alpha_hi = alpha_lo
     scale_init = float_dtype(np.random.uniform() + 0.5)
     scale_lo = scale_init
     num_dims = 10
-    samples = float_dtype(np.random.uniform(size=(20, num_dims)))
     # We must construct some variable for TF to attempt to optimize.
     adaptive_lossfun = adaptive.AdaptiveLossFunction(
         num_dims,
         float_dtype,
+        device,
         alpha_lo=alpha_lo,
         alpha_hi=alpha_hi,
         scale_lo=scale_lo,
@@ -183,8 +187,8 @@ class TestAdaptive(parameterized.TestCase):
 
     params = torch.nn.ParameterList(adaptive_lossfun.parameters())
     assert len(params) == 0
-    alpha = adaptive_lossfun.alpha()
-    scale = adaptive_lossfun.scale()
+    alpha = adaptive_lossfun.alpha().cpu().detach()
+    scale = adaptive_lossfun.scale().cpu().detach()
     alpha_init = (alpha_lo + alpha_hi) / 2.
     np.testing.assert_allclose(alpha, alpha_init * np.ones_like(alpha))
     np.testing.assert_allclose(scale, scale_init * np.ones_like(alpha))
@@ -244,9 +248,10 @@ class TestAdaptive(parameterized.TestCase):
         (alpha[np.newaxis, :] == 2.)) * scale[np.newaxis, :] + mu[np.newaxis, :]
     return [float_dtype(x) for x in [samples, mu, alpha, scale]]
 
-  @parameterized.named_parameters(('Single', np.float32),
-                                  ('Double', np.float64))
-  def testFittingToyNdMixedDataIsCorrect(self, float_dtype):
+  @parameterized.named_parameters(
+      ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
+      ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
+  def testFittingToyNdMixedDataIsCorrect(self, float_dtype, device):
     """Tests that minimizing the adaptive loss recovers the true model.
 
     Here we generate a 2D array of samples drawn from a mix of scaled and
@@ -258,33 +263,37 @@ class TestAdaptive(parameterized.TestCase):
 
     Args:
       float_dtype: The type (np.float32 or np.float64) of data to test.
+      device: The device to run on.
     """
     num_dims = 8
     samples, mu_true, alpha_true, scale_true = self._sample_nd_mixed_data(
         100, num_dims, float_dtype)
     mu = Variable(
-        torch.tensor(np.zeros(samples.shape[1], float_dtype)),
+        torch.tensor(
+            np.zeros(samples.shape[1], dtype=float_dtype), device=device),
         requires_grad=True)
 
-    adaptive_lossfun = adaptive.AdaptiveLossFunction(num_dims, float_dtype)
+    adaptive_lossfun = adaptive.AdaptiveLossFunction(num_dims, float_dtype,
+                                                     device)
     params = torch.nn.ParameterList(adaptive_lossfun.parameters())
     optimizer = torch.optim.Adam([p for p in params] + [mu], lr=0.1)
     for _ in range(1000):
       optimizer.zero_grad()
-      x = torch.as_tensor(samples) - mu[np.newaxis, :]
+      x = torch.as_tensor(samples, device=device) - mu[np.newaxis, :]
       loss = torch.sum(adaptive_lossfun.lossfun(x))
       loss.backward(retain_graph=True)
       optimizer.step()
 
-    mu = mu.detach().numpy()
-    alpha = adaptive_lossfun.alpha()[0, :].detach().numpy()
-    scale = adaptive_lossfun.scale()[0, :].detach().numpy()
+    mu = mu.cpu().detach().numpy()
+    alpha = adaptive_lossfun.alpha()[0, :].cpu().detach().numpy()
+    scale = adaptive_lossfun.scale()[0, :].cpu().detach().numpy()
     for a, b in [(alpha, alpha_true), (scale, scale_true), (mu, mu_true)]:
       np.testing.assert_allclose(a, b * np.ones_like(a), rtol=0.1, atol=0.1)
 
-  @parameterized.named_parameters(('Single', np.float32),
-                                  ('Double', np.float64))
-  def testFittingToyNdMixedDataIsCorrectStudentsT(self, float_dtype):
+  @parameterized.named_parameters(
+      ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
+      ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
+  def testFittingToyNdMixedDataIsCorrectStudentsT(self, float_dtype, device):
     """Tests that minimizing the Student's T loss recovers the true model.
 
     Here we generate a 2D array of samples drawn from a mix of scaled and
@@ -296,27 +305,30 @@ class TestAdaptive(parameterized.TestCase):
 
     Args:
       float_dtype: The type (np.float32 or np.float64) of data to test.
+      device: The device to run on.
     """
     num_dims = 8
     samples, mu_true, alpha_true, scale_true = self._sample_nd_mixed_data(
         100, num_dims, float_dtype)
     mu = Variable(
-        torch.tensor(np.zeros(samples.shape[1], float_dtype)),
+        torch.tensor(
+            np.zeros(samples.shape[1], dtype=float_dtype), device=device),
         requires_grad=True)
 
-    students_t_lossfun = adaptive.StudentsTLossFunction(num_dims, float_dtype)
+    students_t_lossfun = adaptive.StudentsTLossFunction(num_dims, float_dtype,
+                                                        device)
     params = torch.nn.ParameterList(students_t_lossfun.parameters())
     optimizer = torch.optim.Adam([params[0], params[1], mu], lr=0.1)
     for _ in range(1000):
       optimizer.zero_grad()
-      x = torch.as_tensor(samples) - mu[np.newaxis, :]
+      x = torch.as_tensor(samples, device=device) - mu[np.newaxis, :]
       loss = torch.sum(students_t_lossfun.lossfun(x))
       loss.backward(retain_graph=True)
       optimizer.step()
 
-    mu = mu.detach().numpy()
-    log_df = students_t_lossfun.log_df[0, :].detach().numpy()
-    scale = students_t_lossfun.scale()[0, :].detach().numpy()
+    mu = mu.cpu().detach().numpy()
+    log_df = students_t_lossfun.log_df[0, :].cpu().detach().numpy()
+    scale = students_t_lossfun.scale()[0, :].cpu().detach().numpy()
 
     for ldf, a_true in zip(log_df, alpha_true):
       if a_true == 0:
@@ -327,31 +339,36 @@ class TestAdaptive(parameterized.TestCase):
     for a, b in [(scale, scale_true), (mu, mu_true)]:
       np.testing.assert_allclose(a, b * np.ones_like(a), rtol=0.1, atol=0.1)
 
-  @parameterized.named_parameters(('Single', np.float32),
-                                  ('Double', np.float64))
-  def testLossfunPreservesDtype(self, float_dtype):
+  @parameterized.named_parameters(
+      ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
+      ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
+  def testLossfunPreservesDtype(self, float_dtype, device):
     """Checks the loss's outputs have the same precisions as its input."""
     num_dims = 8
     samples, _, _, _ = self._sample_nd_mixed_data(100, num_dims, float_dtype)
-    adaptive_lossfun = adaptive.AdaptiveLossFunction(num_dims, float_dtype)
-    loss = adaptive_lossfun.lossfun(samples).detach().numpy()
-    alpha = adaptive_lossfun.alpha().detach().numpy()
-    scale = adaptive_lossfun.scale().detach().numpy()
+    adaptive_lossfun = adaptive.AdaptiveLossFunction(num_dims, float_dtype,
+                                                     device)
+    loss = adaptive_lossfun.lossfun(torch.tensor(
+        samples, device=device)).cpu().detach().numpy()
+    alpha = adaptive_lossfun.alpha().cpu().detach().numpy()
+    scale = adaptive_lossfun.scale().cpu().detach().numpy()
     np.testing.assert_(loss.dtype, float_dtype)
     np.testing.assert_(alpha.dtype, float_dtype)
     np.testing.assert_(scale.dtype, float_dtype)
 
-  @parameterized.named_parameters(('Single', np.float32),
-                                  ('Double', np.float64))
-  def testImageLossfunPreservesDtype(self, float_dtype):
+  @parameterized.named_parameters(
+      ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
+      ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
+  def testImageLossfunPreservesDtype(self, float_dtype, device):
     """Tests that image_lossfun's outputs precisions match its input."""
     image_size = (64, 64, 3)
     x = float_dtype(np.random.uniform(size=[10] + list(image_size)))
     adaptive_image_lossfun = adaptive.AdaptiveImageLossFunction(
-        image_size, float_dtype)
-    loss = adaptive_image_lossfun.lossfun(x).detach().numpy()
-    alpha = adaptive_image_lossfun.alpha().detach().numpy()
-    scale = adaptive_image_lossfun.scale().detach().numpy()
+        image_size, float_dtype, device)
+    loss = adaptive_image_lossfun.lossfun(torch.tensor(
+        x, device=device)).cpu().detach().numpy()
+    alpha = adaptive_image_lossfun.alpha().cpu().detach().numpy()
+    scale = adaptive_image_lossfun.scale().cpu().detach().numpy()
     np.testing.assert_(loss.dtype, float_dtype)
     np.testing.assert_(alpha.dtype, float_dtype)
     np.testing.assert_(scale.dtype, float_dtype)
@@ -363,7 +380,7 @@ class TestAdaptive(parameterized.TestCase):
     float_dtype = np.float32
     x = float_dtype(np.random.uniform(size=[10] + list(image_size)))
     adaptive_image_lossfun = adaptive.AdaptiveImageLossFunction(
-        image_size, float_dtype, use_students_t=use_students_t)
+        image_size, float_dtype, 'cpu', use_students_t=use_students_t)
     loss = adaptive_image_lossfun.lossfun(x).detach().numpy()
     scale = adaptive_image_lossfun.scale().detach().numpy()
     np.testing.assert_(tuple(loss.shape[1:]) == image_size)
@@ -375,9 +392,12 @@ class TestAdaptive(parameterized.TestCase):
       alpha = adaptive_image_lossfun.alpha().detach().numpy()
       np.testing.assert_(tuple(alpha.shape) == image_size)
 
-  @parameterized.named_parameters(('Wavelet', _generate_wavelet_toy_image_data),
-                                  ('Pixel', _generate_pixel_toy_image_data))
-  def testFittingImageDataIsCorrect(self, image_data_callback):
+  @parameterized.named_parameters(
+      ('WaveletCPU', _generate_wavelet_toy_image_data, 'cpu'),
+      ('WaveletGPU', _generate_wavelet_toy_image_data, 'cuda'),
+      ('PixelCPU', _generate_pixel_toy_image_data, 'cpu'),
+      ('PixelGPU', _generate_pixel_toy_image_data, 'cuda'))
+  def testFittingImageDataIsCorrect(self, image_data_callback, device):
     """Tests that minimizing the adaptive image loss recovers the true model.
 
     Here we generate a stack of color images drawn from a normal distribution,
@@ -388,6 +408,7 @@ class TestAdaptive(parameterized.TestCase):
     Args:
       image_data_callback: The function used to generate the training data and
         parameters used during optimization.
+      device: The device to run on.
     """
     # Generate toy data.
     image_width = 4
@@ -399,11 +420,12 @@ class TestAdaptive(parameterized.TestCase):
 
     float_dtype = np.float64
     prediction = Variable(
-        torch.tensor(np.zeros(reference.shape, float_dtype)),
+        torch.tensor(np.zeros(reference.shape, float_dtype), device=device),
         requires_grad=True)
     adaptive_image_lossfun = adaptive.AdaptiveImageLossFunction(
         (image_width, image_width, 3),
         float_dtype,
+        device,
         color_space=color_space,
         representation=representation,
         wavelet_num_levels=wavelet_num_levels,
@@ -414,12 +436,12 @@ class TestAdaptive(parameterized.TestCase):
     optimizer = torch.optim.Adam([p for p in params] + [prediction], lr=0.1)
     for _ in range(1000):
       optimizer.zero_grad()
-      x = torch.as_tensor(samples) - prediction[np.newaxis, :]
+      x = torch.as_tensor(samples, device=device) - prediction[np.newaxis, :]
       loss = torch.sum(adaptive_image_lossfun.lossfun(x))
       loss.backward(retain_graph=True)
       optimizer.step()
 
-    prediction = prediction.detach().numpy()
+    prediction = prediction.cpu().detach().numpy()
     np.testing.assert_allclose(prediction, reference, rtol=0.01, atol=0.01)
 
 

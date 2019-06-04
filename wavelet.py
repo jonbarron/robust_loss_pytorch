@@ -145,7 +145,8 @@ def pad_reflecting(x, padding_below, padding_above, axis):
   # padded tensor.
   i_mod = np.mod(i, np.maximum(1, 2 * (n - 1)))
   j = np.minimum(2 * (n - 1) - i_mod, i_mod)
-  y = torch.index_select(x, axis, torch.as_tensor(j).type(torch.int64))
+  y = torch.index_select(x, axis,
+                         torch.as_tensor(j).type(torch.int64).to(x.device))
   return y
 
 
@@ -192,6 +193,7 @@ def _downsample(x, f, direction, shift):
   # of (n-1)/2 on both sides, while an even-length filter will pad by one less
   # below than above.
   x = torch.as_tensor(x)
+  f = torch.tensor(f).to(x)
   x_padded = pad_reflecting(x, (len(f) - 1) // 2, len(f) // 2, direction + 1)
   if direction == 0:
     x_padded = x_padded[:, shift:, :]
@@ -248,6 +250,7 @@ def _upsample(x, up_sz, f, direction, shift):
   elif direction == 1:
     sz_ex = x.shape * np.array([1, 1, 2])
     f_ex = torch.tensor(f[::-1].copy())[np.newaxis, :]
+  f_ex = f_ex.to(x)
   if shift == 0:
     x_and_zeros = [x, torch.zeros_like(x)]
   elif shift == 1:

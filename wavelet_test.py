@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from absl.testing import parameterized
 import numpy as np
 import PIL.Image
 import scipy.io
@@ -26,9 +27,10 @@ from robust_loss_pytorch import util
 from robust_loss_pytorch import wavelet
 
 
-class TestWavelet:
+class TestWavelet(parameterized.TestCase):
 
   def setUp(self):
+    super(TestWavelet, self).setUp()
     np.random.seed(0)
 
   def _assert_pyramids_close(self, x0, x1, epsilon):
@@ -53,16 +55,13 @@ class TestWavelet:
       axis = int(np.floor(np.random.uniform() * 3.))
 
       if axis == 0:
-        reference = np.pad(x,
-                           [[padding_below, padding_above], [0, 0], [0, 0]],
+        reference = np.pad(x, [[padding_below, padding_above], [0, 0], [0, 0]],
                            'reflect')
       elif axis == 1:
-        reference = np.pad(x,
-                           [[0, 0], [padding_below, padding_above], [0, 0]],
+        reference = np.pad(x, [[0, 0], [padding_below, padding_above], [0, 0]],
                            'reflect')
       elif axis == 2:
-        reference = np.pad(x,
-                           [[0, 0], [0, 0], [padding_below, padding_above]],
+        reference = np.pad(x, [[0, 0], [0, 0], [padding_below, padding_above]],
                            'reflect')
 
       result = wavelet.pad_reflecting(x, padding_below, padding_above, axis)
@@ -166,16 +165,37 @@ class TestWavelet:
     wavelet_type = 'CDF9/7'
     return im, pyr_true, wavelet_type
 
-  def testConstructMatchesGoldenData(self):
+  @parameterized.named_parameters(('CPU', 'cpu'), ('GPU', 'cuda'))
+  def testConstructMatchesGoldenData(self, device):
     """Tests construct() against golden data."""
     im, pyr_true, wavelet_type = self._load_golden_data()
+    im = torch.tensor(im, device=device)
     pyr = wavelet.construct(im, len(pyr_true) - 1, wavelet_type)
+
+    pyr = list(pyr)
+    for d in range(len(pyr) - 1):
+      pyr[d] = list(pyr[d])
+      for b in range(3):
+        pyr[d][b] = pyr[d][b].cpu().detach()
+    d = len(pyr) - 1
+    pyr[d] = pyr[d].cpu().detach()
+
     self._assert_pyramids_close(pyr, pyr_true, 1e-5)
 
-  def testCollapseMatchesGoldenData(self):
+  @parameterized.named_parameters(('CPU', 'cpu'), ('GPU', 'cuda'))
+  def testCollapseMatchesGoldenData(self, device):
     """Tests collapse() against golden data."""
     im, pyr_true, wavelet_type = self._load_golden_data()
-    recon = wavelet.collapse(pyr_true, wavelet_type)
+
+    pyr_true = list(pyr_true)
+    for d in range(len(pyr_true) - 1):
+      pyr_true[d] = list(pyr_true[d])
+      for b in range(3):
+        pyr_true[d][b] = torch.tensor(pyr_true[d][b], device=device)
+    d = len(pyr_true) - 1
+    pyr_true[d] = torch.tensor(pyr_true[d], device=device)
+
+    recon = wavelet.collapse(pyr_true, wavelet_type).cpu().detach()
     np.testing.assert_allclose(recon, im, atol=1e-5, rtol=1e-5)
 
   def testVisualizeMatchesGoldenData(self):

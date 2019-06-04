@@ -45,13 +45,17 @@ def interpolate1d(x, values, tangents):
     `tangents`, using `x` as the query values. Will be the same length and type
     as `x`.
   """
-  if x.dtype == 'float64' or torch.as_tensor(x).dtype == torch.float64:
-    float_dtype = torch.float64
-  else:
-    float_dtype = torch.float32
-  x = torch.as_tensor(x, dtype=float_dtype)
-  values = torch.as_tensor(values, dtype=float_dtype)
-  tangents = torch.as_tensor(tangents, dtype=float_dtype)
+  # if x.dtype == 'float64' or torch.as_tensor(x).dtype == torch.float64:
+  #   float_dtype = torch.float64
+  # else:
+  #   float_dtype = torch.float32
+  # x = torch.as_tensor(x, dtype=float_dtype)
+  # values = torch.as_tensor(values, dtype=float_dtype)
+  # tangents = torch.as_tensor(tangents, dtype=float_dtype)
+  assert torch.is_tensor(x)
+  assert torch.is_tensor(values)
+  assert torch.is_tensor(tangents)
+  float_dtype = x.dtype
   assert values.dtype == float_dtype
   assert tangents.dtype == float_dtype
   assert len(values.shape) == 1
@@ -79,10 +83,10 @@ def interpolate1d(x, values, tangents):
   value_after = tangents[-1] * (t - 1.) + values[-1]
 
   # Cubically interpolate between the knots below and above each query point.
-  neighbor_values_lo = torch.as_tensor(values[x_lo], dtype=float_dtype)
-  neighbor_values_hi = torch.as_tensor(values[x_hi], dtype=float_dtype)
-  neighbor_tangents_lo = torch.as_tensor(tangents[x_lo], dtype=float_dtype)
-  neighbor_tangents_hi = torch.as_tensor(tangents[x_hi], dtype=float_dtype)
+  neighbor_values_lo = values[x_lo]
+  neighbor_values_hi = values[x_hi]
+  neighbor_tangents_lo = tangents[x_lo]
+  neighbor_tangents_hi = tangents[x_hi]
   value_mid = (
       neighbor_values_lo * h00 + neighbor_values_hi * h01 +
       neighbor_tangents_lo * h10 + neighbor_tangents_hi * h11)

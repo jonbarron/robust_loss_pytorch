@@ -26,25 +26,25 @@ import torch_dct
 def log_safe(x):
   """The same as torch.log(x), but clamps the input to prevent NaNs."""
   x = torch.as_tensor(x)
-  return torch.log(torch.min(x, torch.tensor(33e37).type(x.dtype)))
+  return torch.log(torch.min(x, torch.tensor(33e37).to(x)))
 
 
 def log1p_safe(x):
   """The same as torch.log1p(x), but clamps the input to prevent NaNs."""
   x = torch.as_tensor(x)
-  return torch.log1p(torch.min(x, torch.tensor(33e37).type(x.dtype)))
+  return torch.log1p(torch.min(x, torch.tensor(33e37).to(x)))
 
 
 def exp_safe(x):
   """The same as torch.exp(x), but clamps the input to prevent NaNs."""
   x = torch.as_tensor(x)
-  return torch.exp(torch.min(x, torch.tensor(87.5).type(x.dtype)))
+  return torch.exp(torch.min(x, torch.tensor(87.5).to(x)))
 
 
 def expm1_safe(x):
   """The same as tf.math.expm1(x), but clamps the input to prevent NaNs."""
   x = torch.as_tensor(x)
-  return torch.expm1(torch.min(x, torch.tensor(87.5).type(x.dtype)))
+  return torch.expm1(torch.min(x, torch.tensor(87.5).to(x)))
 
 
 def inv_softplus(y):
@@ -139,7 +139,7 @@ def rgb_to_syuv(rgb):
   rgb = torch.as_tensor(rgb)
   kernel = torch.tensor([[0.299, -0.14714119, 0.61497538],
                          [0.587, -0.28886916, -0.51496512],
-                         [0.114, 0.43601035, -0.10001026]]).type(rgb.dtype)
+                         [0.114, 0.43601035, -0.10001026]]).to(rgb)
   yuv = torch.reshape(
       torch.matmul(torch.reshape(rgb, [-1, 3]), kernel), rgb.shape)
   return _VOLUME_PRESERVING_YUV_SCALE * yuv
@@ -162,7 +162,7 @@ def syuv_to_rgb(yuv):
   """
   yuv = torch.as_tensor(yuv)
   kernel = torch.tensor([[1, 1, 1], [0, -0.394642334, 2.03206185],
-                         [1.13988303, -0.58062185, 0]]).type(yuv.dtype)
+                         [1.13988303, -0.58062185, 0]]).to(yuv)
   rgb = torch.reshape(
       torch.matmul(torch.reshape(yuv, [-1, 3]), kernel), yuv.shape)
   return rgb / _VOLUME_PRESERVING_YUV_SCALE

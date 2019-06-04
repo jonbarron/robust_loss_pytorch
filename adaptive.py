@@ -55,6 +55,7 @@ class AdaptiveLossFunction(nn.Module):
   def __init__(self,
                num_dims,
                float_dtype,
+               device,
                alpha_lo=0.001,
                alpha_hi=1.999,
                alpha_init=None,
@@ -65,6 +66,7 @@ class AdaptiveLossFunction(nn.Module):
     Args:
       num_dims: The number of dimensions of the input to come.
       float_dtype: The floating point precision of the inputs to come.
+      device: The device to run on (cpu, cuda, etc).
       alpha_lo: The lowest possible value for loss's alpha parameters, must be
         >= 0 and a scalar. Should probably be in (0, 2).
       alpha_hi: The highest possible value for loss's alpha parameters, must be
@@ -123,12 +125,16 @@ class AdaptiveLossFunction(nn.Module):
     if float_dtype == np.float64:
       float_dtype = torch.float64
     self.float_dtype = float_dtype
+    self.device = device
+
+    self.distribution = distribution.Distribution()
 
     if alpha_lo == alpha_hi:
       # If the range of alphas is a single item, then we just fix `alpha` to be
       # a constant.
-      self.fixed_alpha = torch.as_tensor(alpha_lo).type(
-          float_dtype)[np.newaxis, np.newaxis].repeat(1, self.num_dims)
+      self.fixed_alpha = torch.tensor(
+          alpha_lo, dtype=self.float_dtype,
+          device=self.device)[np.newaxis, np.newaxis].repeat(1, self.num_dims)
       self.alpha = lambda: self.fixed_alpha
     else:
       # Otherwise we construct a "latent" alpha variable and define `alpha`
@@ -141,8 +147,10 @@ class AdaptiveLossFunction(nn.Module):
       self.register_parameter(
           'latent_alpha',
           torch.nn.Parameter(
-              latent_alpha_init.clone().detach().type(float_dtype)
-              [np.newaxis, np.newaxis].repeat(1, self.num_dims),
+              latent_alpha_init.clone().detach().to(
+                  dtype=self.float_dtype,
+                  device=self.device)[np.newaxis, np.newaxis].repeat(
+                      1, self.num_dims),
               requires_grad=True))
       self.alpha = lambda: util.affine_sigmoid(
           self.latent_alpha, lo=alpha_lo, hi=alpha_hi)
@@ -150,8 +158,9 @@ class AdaptiveLossFunction(nn.Module):
     if scale_lo == scale_init:
       # If the difference between the minimum and initial scale is zero, then
       # we just fix `scale` to be a constant.
-      self.fixed_scale = torch.as_tensor(scale_init).type(
-          float_dtype)[np.newaxis, np.newaxis].repeat(1, self.num_dims)
+      self.fixed_scale = torch.tensor(
+          scale_init, dtype=self.float_dtype,
+          device=self.device)[np.newaxis, np.newaxis].repeat(1, self.num_dims)
       self.scale = lambda: self.fixed_scale
     else:
       # Otherwise we construct a "latent" scale variable and define `scale`
@@ -159,7 +168,8 @@ class AdaptiveLossFunction(nn.Module):
       self.register_parameter(
           'latent_scale',
           torch.nn.Parameter(
-              torch.zeros((1, self.num_dims)).type(float_dtype),
+              torch.zeros((1, self.num_dims)).to(
+                  dtype=self.float_dtype, device=self.device),
               requires_grad=True))
       self.scale = lambda: util.affine_softplus(
           self.latent_scale, lo=scale_lo, ref=scale_init)
@@ -185,18 +195,24 @@ class AdaptiveLossFunction(nn.Module):
     assert len(x.shape) == 2
     assert x.shape[1] == self.num_dims
     assert x.dtype == self.float_dtype
-    return distribution.nllfun(x, self.alpha(), self.scale(), **kwargs)
+    return self.distribution.nllfun(x, self.alpha(), self.scale(), **kwargs)
 
 
 class StudentsTLossFunction(nn.Module):
   """A variant of AdaptiveLossFunction that uses a Student's t-distribution."""
 
-  def __init__(self, num_dims, float_dtype, scale_lo=1e-5, scale_init=1.0):
+  def __init__(self,
+               num_dims,
+               float_dtype,
+               device,
+               scale_lo=1e-5,
+               scale_init=1.0):
     """Sets up the adaptive loss for a matrix of inputs.
 
     Args:
       num_dims: The number of dimensions of the input to come.
       float_dtype: The floating point precision of the inputs to come.
+      device: The device to run on (cpu, cuda, etc).
       scale_lo: The lowest possible value for the loss's scale parameters. Must
         be > 0 and a scalar. This value may have more of an effect than you
         think, as the loss is unbounded as scale approaches zero (say, at a
@@ -227,9 +243,11 @@ class StudentsTLossFunction(nn.Module):
     if float_dtype == np.float64:
       float_dtype = torch.float64
     self.float_dtype = float_dtype
+    self.device = device
 
     self.log_df = torch.nn.Parameter(
-        torch.zeros((1, self.num_dims)).type(self.float_dtype),
+        torch.zeros(
+            (1, self.num_dims)).to(dtype=self.float_dtype, device=self.device),
         requires_grad=True)
     self.register_parameter('log_df', self.log_df)
 
@@ -237,13 +255,16 @@ class StudentsTLossFunction(nn.Module):
       # If the difference between the minimum and initial scale is zero, then
       # we just fix `scale` to be a constant.
       self.latent_scale = None
-      self.scale = torch.as_tensor(scale_init).type(
-          self.float_dtype)[np.newaxis, np.newaxis].repeat(1, self.num_dims)
+      self.scale = torch.tensor(
+          scale_init, dtype=self.float_dtype,
+          device=self.device)[np.newaxis, np.newaxis].repeat(1, self.num_dims)
     else:
       # Otherwise we construct a "latent" scale variable and define `scale`
       # As an affine function of a softplus on that latent variable.
       self.latent_scale = torch.nn.Parameter(
-          torch.zeros((1, self.num_dims)).type(self.float_dtype),
+          torch.zeros(
+              (1,
+               self.num_dims)).to(dtype=self.float_dtype, device=self.device),
           requires_grad=True)
     self.register_parameter('latent_scale', self.latent_scale)
     self.df = lambda: torch.exp(self.log_df)
@@ -262,10 +283,9 @@ class StudentsTLossFunction(nn.Module):
     Returns:
       A tensor of the same type and shape as input `x`, containing the loss at
       each element of `x`. These "losses" are actually negative log-likelihoods
-      (as
-      produced by distribution.nllfun()) and so they are not actually bounded
-      from
-      below by zero. You'll probably want to minimize their sum or mean.
+      (as produced by distribution.nllfun()) and so they are not actually
+      bounded from below by zero. You'll probably want to minimize their sum or
+      mean.
     """
     x = torch.as_tensor(x)
     assert len(x.shape) == 2
@@ -314,6 +334,7 @@ class AdaptiveImageLossFunction(nn.Module):
   def __init__(self,
                image_size,
                float_dtype,
+               device,
                color_space='YUV',
                representation='CDF9/7',
                wavelet_num_levels=5,
@@ -330,6 +351,7 @@ class AdaptiveImageLossFunction(nn.Module):
     Args:
       image_size: The size (width, height, num_channels) of the input images.
       float_dtype: The dtype of the floats used as input.
+      device: The device to use.
       color_space: The color space that `x` will be transformed into before
         computing the loss. Must be 'RGB' (in which case no transformation is
         applied) or 'YUV' (in which case we actually use a volume-preserving
@@ -390,16 +412,20 @@ class AdaptiveImageLossFunction(nn.Module):
       float_dtype = torch.float64
     self.float_dtype = float_dtype
 
+    self.device = device
+
     x_example = torch.zeros([1] + list(self.image_size)).type(self.float_dtype)
     x_example_mat = self.transform_to_mat(x_example)
     self.num_dims = x_example_mat.shape[1]
 
     if self.use_students_t:
       self.adaptive_lossfun = StudentsTLossFunction(self.num_dims,
-                                                    self.float_dtype, **kwargs)
+                                                    self.float_dtype,
+                                                    self.device, **kwargs)
     else:
       self.adaptive_lossfun = AdaptiveLossFunction(self.num_dims,
-                                                   self.float_dtype, **kwargs)
+                                                   self.float_dtype,
+                                                   self.device, **kwargs)
 
   def lossfun(self, x):
     """Computes the adaptive form of the robust loss on a set of images.
