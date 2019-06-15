@@ -16,3 +16,13 @@ implements the "adaptive" form of the loss, which tries to adapt the
 hyperparameters automatically and also includes support for imposing losses in
 different image representations. The probability distribution underneath the
 adaptive loss is implemented in `distribution.py`.
+
+If you use this code, please cite it:
+```
+@article{BarronCVPR2019,
+  Author = {Jonathan T. Barron},
+  Title = {A General and Adaptive Robust Loss Function},
+  Journal = {CVPR},
+  Year = {2019}
+}
+```
