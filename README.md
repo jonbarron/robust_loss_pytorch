@@ -9,7 +9,7 @@ implementation at:
 https://github.com/google-research/google-research/tree/master/robust_loss. The
 required packages are listed in `requirements.txt`.
 
-If you'd like this loss, include `general.py` or `adaptive.py` and call the loss
+To use this code, include `general.py` or `adaptive.py` and call the loss
 function. `general.py` implements the "general" form of the loss, which assumes
 you are prepared to set and tune hyperparameters yourself, and `adaptive.py`
 implements the "adaptive" form of the loss, which tries to adapt the
