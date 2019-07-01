@@ -126,6 +126,10 @@ class AdaptiveLossFunction(nn.Module):
       float_dtype = torch.float64
     self.float_dtype = float_dtype
     self.device = device
+    if isinstance(device, int) or\
+       (isinstance(device, str) and 'cuda' in device) or\
+       (isinstance(device, torch.device) and device.type == 'cuda'):
+        torch.cuda.set_device(self.device)
 
     self.distribution = distribution.Distribution()
 
@@ -244,6 +248,10 @@ class StudentsTLossFunction(nn.Module):
       float_dtype = torch.float64
     self.float_dtype = float_dtype
     self.device = device
+    if isinstance(device, int) or\
+       (isinstance(device, str) and 'cuda' in device) or\
+       (isinstance(device, torch.device) and device.type == 'cuda'):
+        torch.cuda.set_device(self.device)
 
     self.log_df = torch.nn.Parameter(
         torch.zeros(
@@ -411,8 +419,11 @@ class AdaptiveImageLossFunction(nn.Module):
     if float_dtype == np.float64:
       float_dtype = torch.float64
     self.float_dtype = float_dtype
-
     self.device = device
+    if isinstance(device, int) or\
+       (isinstance(device, str) and 'cuda' in device) or\
+       (isinstance(device, torch.device) and device.type == 'cuda'):
+        torch.cuda.set_device(self.device)
 
     x_example = torch.zeros([1] + list(self.image_size)).type(self.float_dtype)
     x_example_mat = self.transform_to_mat(x_example)
