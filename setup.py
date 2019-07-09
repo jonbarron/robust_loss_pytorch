@@ -33,7 +33,7 @@ setup(
     name="robust_loss_pytorch",
     version="0.0.1",
     url="https://github.com/jonbarron/robust_loss_pytorch",
-    license='MIT',
+    license='Apache 2.0',
     author="Jon Barron",
     author_email="jonbarron@gmail.com",
     description="A General and Adaptive Robust Loss Function",

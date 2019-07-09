@@ -12,11 +12,13 @@ https://github.com/google-research/google-research/tree/master/robust_loss.
 
 ### Typical Install
 ```
-pip install .
+pip install git+https://github.com/khornlund/robust_loss_pytorch
 ```
 
-### Development Mode
+### Development
 ```
+git clone https://github.com/khornlund/robust_loss_pytorch
+cd robust_loss_pytorch/
 pip install -e .[dev]
 ```
 
