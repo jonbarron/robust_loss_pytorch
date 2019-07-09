@@ -6,8 +6,21 @@ Jonathan T. Barron CVPR, 2019
 
 The code is implemented in Pytorch, and is a port of the TensorFlow
 implementation at:
-https://github.com/google-research/google-research/tree/master/robust_loss. The
-required packages are listed in `requirements.txt`.
+https://github.com/google-research/google-research/tree/master/robust_loss.
+
+## Installation
+
+### Typical Install
+```
+pip install .
+```
+
+### Development Mode
+```
+pip install -e .[dev]
+```
+
+## Usage
 
 To use this code, include `general.py` or `adaptive.py` and call the loss
 function. `general.py` implements the "general" form of the loss, which assumes
@@ -16,6 +29,18 @@ implements the "adaptive" form of the loss, which tries to adapt the
 hyperparameters automatically and also includes support for imposing losses in
 different image representations. The probability distribution underneath the
 adaptive loss is implemented in `distribution.py`.
+
+```
+from robust_loss_pytorch import AdaptiveLossFunction
+```
+
+or
+
+```
+from robust_loss_pytorch import lossfun
+```
+
+## Citation
 
 If you use this code, please cite it:
 ```

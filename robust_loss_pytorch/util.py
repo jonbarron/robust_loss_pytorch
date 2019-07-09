@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+
 import numpy as np
 import torch
 import torch_dct
@@ -197,6 +199,15 @@ def compute_jacobian(f, x):
   return jacobian
 
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(ROOT_DIR, 'data')
+
+
+PARTITION_SPLINE_FILENAME = 'partition_spline.npz'
+WAVELET_GOLDEN_FILENAME = 'wavelet_golden.mat'
+WAVELET_VIS_GOLDEN_FILENAME = 'wavelet_vis_golden.png'
+
+
 def get_resource_as_file(path):
   """A uniform interface for internal/open-source files."""
 
@@ -211,9 +222,9 @@ def get_resource_as_file(path):
     def __exit__(self, *args):
       pass
 
-  return NullContextManager('./' + path)
+  return NullContextManager(os.path.join(DATA_DIR, path))
 
 
 def get_resource_filename(path):
   """A uniform interface for internal/open-source filenames."""
-  return './' + path
+  return os.path.join(DATA_DIR, path)
