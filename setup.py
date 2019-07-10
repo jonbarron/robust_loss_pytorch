@@ -31,7 +31,7 @@ requirements_dev = [
 
 setup(
     name="robust_loss_pytorch",
-    version="0.0.1",
+    version="0.0.2",
     url="https://github.com/jonbarron/robust_loss_pytorch",
     license='Apache 2.0',
     author="Jon Barron",
