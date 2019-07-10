@@ -39,6 +39,11 @@ setup(
     description="A General and Adaptive Robust Loss Function",
     long_description=read("README.md"),
     packages=find_packages(exclude=('tests',)),
+    package_data={'': [
+        '*.npz',
+        '*.mat',
+        '*.png',
+    ]},
     install_requires=requirements,
     extras_require={
         'dev': requirements_dev

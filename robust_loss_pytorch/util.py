@@ -197,34 +197,3 @@ def compute_jacobian(f, x):
     jacobian.append(np.array(vec(var_x.grad)))
   jacobian = np.stack(jacobian, 1)
   return jacobian
-
-
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(ROOT_DIR, 'data')
-
-
-PARTITION_SPLINE_FILENAME = 'partition_spline.npz'
-WAVELET_GOLDEN_FILENAME = 'wavelet_golden.mat'
-WAVELET_VIS_GOLDEN_FILENAME = 'wavelet_vis_golden.png'
-
-
-def get_resource_as_file(path):
-  """A uniform interface for internal/open-source files."""
-
-  class NullContextManager(object):
-
-    def __init__(self, dummy_resource=None):
-      self.dummy_resource = dummy_resource
-
-    def __enter__(self):
-      return self.dummy_resource
-
-    def __exit__(self, *args):
-      pass
-
-  return NullContextManager(os.path.join(DATA_DIR, path))
-
-
-def get_resource_filename(path):
-  """A uniform interface for internal/open-source filenames."""
-  return os.path.join(DATA_DIR, path)

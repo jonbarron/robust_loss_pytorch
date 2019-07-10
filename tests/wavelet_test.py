@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from pkg_resources import resource_string
 from absl.testing import parameterized
 import numpy as np
 import PIL.Image
@@ -154,16 +155,16 @@ class TestWavelet(parameterized.TestCase):
     Returns:
       A tuple containing and image, its decomposition, and its wavelet type.
     """
-    with util.get_resource_as_file(
-        util.WAVELET_GOLDEN_FILENAME) as golden_filename:
-      data = scipy.io.loadmat(golden_filename)
-    im = np.float32(data['I_color'])
-    pyr_true = data['pyr_color'][0, :].tolist()
-    for i in range(len(pyr_true) - 1):
-      pyr_true[i] = tuple(pyr_true[i].flatten())
-    pyr_true = tuple(pyr_true)
-    wavelet_type = 'CDF9/7'
-    return im, pyr_true, wavelet_type
+    with resource_stream(__name__, 'resources/wavelet_golden.mat')
+      as golden_file:
+      data = scipy.io.loadmat(golden_file)
+      im = np.float32(data['I_color'])
+      pyr_true = data['pyr_color'][0, :].tolist()
+      for i in range(len(pyr_true) - 1):
+        pyr_true[i] = tuple(pyr_true[i].flatten())
+      pyr_true = tuple(pyr_true)
+      wavelet_type = 'CDF9/7'
+      return im, pyr_true, wavelet_type
 
   @parameterized.named_parameters(('CPU', 'cpu'), ('GPU', 'cuda'))
   def testConstructMatchesGoldenData(self, device):
@@ -202,15 +203,15 @@ class TestWavelet(parameterized.TestCase):
     """Tests visualize() (and implicitly flatten())."""
     _, pyr, _ = self._load_golden_data()
     vis = wavelet.visualize(pyr).detach().numpy()
-    golden_vis_filename = util.WAVELET_VIS_GOLDEN_FILENAME
-    vis_true = np.asarray(
-        PIL.Image.open(util.get_resource_filename(golden_vis_filename)))
-    # Allow for some slack as quantization may exaggerate some errors.
-    np.testing.assert_allclose(
-        np.float32(vis_true) / 255.,
-        np.float32(vis) / 255.,
-        atol=0.005,
-        rtol=0.005)
+    with resource_stream(__name__, 'resources/wavelet_vis_golden.png')
+      as golden_vis_file:
+      vis_true = np.asarray(PIL.Image.open(golden_vis_file))
+      # Allow for some slack as quantization may exaggerate some errors.
+      np.testing.assert_allclose(
+          np.float32(vis_true) / 255.,
+          np.float32(vis) / 255.,
+          atol=0.005,
+          rtol=0.005)
 
   def testAccurateRoundTripWithSmallRandomImages(self):
     """Tests that collapse(construct(x)) == x for x = [1, k, k], k in [1, 4]."""
