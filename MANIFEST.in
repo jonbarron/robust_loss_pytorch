@@ -1,0 +1,4 @@
+include README.md
+include data/partition_spline.npz
+include data/wavelet_golden.mat
+include data/wavelet_vis_golden.png
