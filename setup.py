@@ -26,6 +26,7 @@ requirements_dev = [
     'tensorflow>=1.12.0',
     'tensorflow_probability>=0.5.0',
     'Pillow',
+    'nose'
 ]
 
 
@@ -41,8 +42,6 @@ setup(
     packages=find_packages(exclude=('tests',)),
     package_data={'': [
         '*.npz',
-        '*.mat',
-        '*.png',
     ]},
     install_requires=requirements,
     extras_require={

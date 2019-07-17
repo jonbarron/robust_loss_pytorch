@@ -133,7 +133,7 @@ class Distribution():
     # Load the values, tangents, and x-coordinate scaling of a spline that
     # approximates the partition function. This was produced by running
     # the script in fit_partition_spline.py
-    with resource_stream(__name__, 'resources/partition_spline.npz')
+    with resource_stream(__name__, 'resources/partition_spline.npz') \
       as spline_file:
       with np.load(spline_file, allow_pickle=False) as f:
         self._spline_x_scale = torch.tensor(f['x_scale'])
