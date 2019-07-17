@@ -29,7 +29,7 @@ nosetests
 
 ## Usage
 
-To use this code, import `lossfun` or `AdaptiveLossFunction` and call the loss
+To use this code import `lossfun`, or `AdaptiveLossFunction` and call the loss
 function. `general.py` implements the "general" form of the loss, which assumes
 you are prepared to set and tune hyperparameters yourself, and `adaptive.py`
 implements the "adaptive" form of the loss, which tries to adapt the
