@@ -28,6 +28,26 @@ from robust_loss_pytorch import util
 from robust_loss_pytorch import wavelet
 
 
+def _get_device(device_string):
+    """Returns a `torch.device`
+
+    Args:
+      device_string: 'cpu' or 'cuda'
+
+    Returns:
+      `torch.device`
+    """
+    if device_string.lower() == 'cpu':
+      return torch.device('cpu')
+    if device_string.lower() == 'cuda':
+      if torch.cuda.device_count() == 0:
+        print("Warning: There's no GPU available on this machine!")
+        return None
+      return torch.device('cuda:0')
+    raise Exception(
+      '{} is not a valid option. Choose `cpu` or `cuda`.'.format(device_string))
+
+
 def _generate_pixel_toy_image_data(image_width, num_samples, _):
   """Generates pixel data for _test_fitting_toy_image_data_is_correct().
 
@@ -134,8 +154,9 @@ class TestAdaptive(parameterized.TestCase):
   @parameterized.named_parameters(
       ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
       ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
-  def testInitialAlphaAndScaleAreCorrect(self, float_dtype, device):
+  def testInitialAlphaAndScaleAreCorrect(self, float_dtype, device_string):
     """Tests that `alpha` and `scale` are initialized as expected."""
+    device = _get_device(device_string)
     for i in range(8):
       # Generate random ranges for alpha and scale.
       alpha_lo = float_dtype(np.random.uniform())
@@ -168,8 +189,9 @@ class TestAdaptive(parameterized.TestCase):
   @parameterized.named_parameters(
       ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
       ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
-  def testFixedAlphaAndScaleAreCorrect(self, float_dtype, device):
+  def testFixedAlphaAndScaleAreCorrect(self, float_dtype, device_string):
     """Tests that fixed alphas and scales do not change during optimization)."""
+    device = _get_device(device_string)
     alpha_lo = np.random.uniform() * 2.
     alpha_hi = alpha_lo
     scale_init = float_dtype(np.random.uniform() + 0.5)
@@ -251,7 +273,7 @@ class TestAdaptive(parameterized.TestCase):
   @parameterized.named_parameters(
       ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
       ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
-  def testFittingToyNdMixedDataIsCorrect(self, float_dtype, device):
+  def testFittingToyNdMixedDataIsCorrect(self, float_dtype, device_string):
     """Tests that minimizing the adaptive loss recovers the true model.
 
     Here we generate a 2D array of samples drawn from a mix of scaled and
@@ -265,6 +287,7 @@ class TestAdaptive(parameterized.TestCase):
       float_dtype: The type (np.float32 or np.float64) of data to test.
       device: The device to run on.
     """
+    device = _get_device(device_string)
     num_dims = 8
     samples, mu_true, alpha_true, scale_true = self._sample_nd_mixed_data(
         100, num_dims, float_dtype)
@@ -293,7 +316,7 @@ class TestAdaptive(parameterized.TestCase):
   @parameterized.named_parameters(
       ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
       ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
-  def testFittingToyNdMixedDataIsCorrectStudentsT(self, float_dtype, device):
+  def testFittingToyNdMixedDataIsCorrectStudentsT(self, float_dtype, device_string):
     """Tests that minimizing the Student's T loss recovers the true model.
 
     Here we generate a 2D array of samples drawn from a mix of scaled and
@@ -307,6 +330,7 @@ class TestAdaptive(parameterized.TestCase):
       float_dtype: The type (np.float32 or np.float64) of data to test.
       device: The device to run on.
     """
+    device = _get_device(device_string)
     num_dims = 8
     samples, mu_true, alpha_true, scale_true = self._sample_nd_mixed_data(
         100, num_dims, float_dtype)
@@ -342,8 +366,9 @@ class TestAdaptive(parameterized.TestCase):
   @parameterized.named_parameters(
       ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
       ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
-  def testLossfunPreservesDtype(self, float_dtype, device):
+  def testLossfunPreservesDtype(self, float_dtype, device_string):
     """Checks the loss's outputs have the same precisions as its input."""
+    device = _get_device(device_string)
     num_dims = 8
     samples, _, _, _ = self._sample_nd_mixed_data(100, num_dims, float_dtype)
     adaptive_lossfun = adaptive.AdaptiveLossFunction(num_dims, float_dtype,
@@ -359,8 +384,9 @@ class TestAdaptive(parameterized.TestCase):
   @parameterized.named_parameters(
       ('SingleCPU', np.float32, 'cpu'), ('DoubleCPU', np.float64, 'cpu'),
       ('SingleGPU', np.float32, 'cuda'), ('DoubleGPU', np.float64, 'cuda'))
-  def testImageLossfunPreservesDtype(self, float_dtype, device):
+  def testImageLossfunPreservesDtype(self, float_dtype, device_string):
     """Tests that image_lossfun's outputs precisions match its input."""
+    device = _get_device(device_string)
     image_size = (64, 64, 3)
     x = float_dtype(np.random.uniform(size=[10] + list(image_size)))
     adaptive_image_lossfun = adaptive.AdaptiveImageLossFunction(
@@ -397,7 +423,7 @@ class TestAdaptive(parameterized.TestCase):
       ('WaveletGPU', _generate_wavelet_toy_image_data, 'cuda'),
       ('PixelCPU', _generate_pixel_toy_image_data, 'cpu'),
       ('PixelGPU', _generate_pixel_toy_image_data, 'cuda'))
-  def testFittingImageDataIsCorrect(self, image_data_callback, device):
+  def testFittingImageDataIsCorrect(self, image_data_callback, device_string):
     """Tests that minimizing the adaptive image loss recovers the true model.
 
     Here we generate a stack of color images drawn from a normal distribution,
@@ -410,6 +436,7 @@ class TestAdaptive(parameterized.TestCase):
         parameters used during optimization.
       device: The device to run on.
     """
+    device = _get_device(device_string)
     # Generate toy data.
     image_width = 4
     num_samples = 10

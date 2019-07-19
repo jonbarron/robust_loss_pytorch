@@ -18,11 +18,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 from absl.testing import parameterized
 import numpy as np
 import PIL.Image
 import scipy.io
 import torch
+import robust_loss_pytorch
 from robust_loss_pytorch import util
 from robust_loss_pytorch import wavelet
 
@@ -154,9 +156,9 @@ class TestWavelet(parameterized.TestCase):
     Returns:
       A tuple containing and image, its decomposition, and its wavelet type.
     """
-    with util.get_resource_as_file(
-        'robust_loss_pytorch/data/wavelet_golden.mat') as golden_filename:
-      data = scipy.io.loadmat(golden_filename)
+    golden_filename = os.path.join(
+      os.path.dirname(__file__), 'resources', 'wavelet_golden.mat')
+    data = scipy.io.loadmat(golden_filename)
     im = np.float32(data['I_color'])
     pyr_true = data['pyr_color'][0, :].tolist()
     for i in range(len(pyr_true) - 1):
@@ -202,9 +204,9 @@ class TestWavelet(parameterized.TestCase):
     """Tests visualize() (and implicitly flatten())."""
     _, pyr, _ = self._load_golden_data()
     vis = wavelet.visualize(pyr).detach().numpy()
-    golden_vis_filename = 'robust_loss_pytorch/data/wavelet_vis_golden.png'
-    vis_true = np.asarray(
-        PIL.Image.open(util.get_resource_filename(golden_vis_filename)))
+    golden_vis_filename = os.path.join(
+      os.path.dirname(__file__), 'resources', 'wavelet_vis_golden.png')
+    vis_true = np.asarray(PIL.Image.open(golden_vis_filename))
     # Allow for some slack as quantization may exaggerate some errors.
     np.testing.assert_allclose(
         np.float32(vis_true) / 255.,

@@ -6,16 +6,48 @@ Jonathan T. Barron CVPR, 2019
 
 The code is implemented in Pytorch, and is a port of the TensorFlow
 implementation at:
-https://github.com/google-research/google-research/tree/master/robust_loss. The
-required packages are listed in `requirements.txt`.
+https://github.com/google-research/google-research/tree/master/robust_loss.
 
-To use this code, include `general.py` or `adaptive.py` and call the loss
+## Installation
+
+### Typical Install
+```
+pip install git+https://github.com/jonbarron/robust_loss_pytorch
+```
+
+### Development
+```
+git clone https://github.com/jonbarron/robust_loss_pytorch
+cd robust_loss_pytorch/
+pip install -e .[dev]
+```
+
+Tests can then be run from the root of the project using:
+```
+nosetests
+```
+
+## Usage
+
+To use this code import `lossfun`, or `AdaptiveLossFunction` and call the loss
 function. `general.py` implements the "general" form of the loss, which assumes
 you are prepared to set and tune hyperparameters yourself, and `adaptive.py`
 implements the "adaptive" form of the loss, which tries to adapt the
 hyperparameters automatically and also includes support for imposing losses in
 different image representations. The probability distribution underneath the
 adaptive loss is implemented in `distribution.py`.
+
+```
+from robust_loss_pytorch import lossfun
+```
+
+or
+
+```
+from robust_loss_pytorch import AdaptiveLossFunction
+```
+
+## Citation
 
 If you use this code, please cite it:
 ```

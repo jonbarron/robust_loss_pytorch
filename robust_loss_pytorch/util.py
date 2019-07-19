@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+
 import numpy as np
 import torch
 import torch_dct
@@ -195,25 +197,3 @@ def compute_jacobian(f, x):
     jacobian.append(np.array(vec(var_x.grad)))
   jacobian = np.stack(jacobian, 1)
   return jacobian
-
-
-def get_resource_as_file(path):
-  """A uniform interface for internal/open-source files."""
-
-  class NullContextManager(object):
-
-    def __init__(self, dummy_resource=None):
-      self.dummy_resource = dummy_resource
-
-    def __enter__(self):
-      return self.dummy_resource
-
-    def __exit__(self, *args):
-      pass
-
-  return NullContextManager('./' + path)
-
-
-def get_resource_filename(path):
-  """A uniform interface for internal/open-source filenames."""
-  return './' + path
