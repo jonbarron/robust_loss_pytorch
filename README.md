@@ -47,6 +47,8 @@ or
 from robust_loss_pytorch import AdaptiveLossFunction
 ```
 
+A toy example of how this code can be used is in `example.ipynb`.
+
 ## Citation
 
 If you use this code, please cite it:
