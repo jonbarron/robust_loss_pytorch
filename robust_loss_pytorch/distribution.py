@@ -245,7 +245,7 @@ class Distribution():
     cauchy = torch.distributions.cauchy.Cauchy(0., np.sqrt(2.))
     uniform = torch.distributions.uniform.Uniform(0, 1)
     samples = torch.zeros_like(alpha)
-    accepted = torch.zeros(alpha.shape).type(torch.uint8)
+    accepted = torch.zeros(alpha.shape).type(torch.bool)
     while not accepted.type(torch.uint8).all():
       # Draw N samples from a Cauchy, our proposal distribution.
       cauchy_sample = torch.reshape(

@@ -14,7 +14,7 @@ def read(filename):
 
 
 requirements = [
-    'torch>=1.1.0',
+    'torch>=1.3.1',
     'torch-dct',
     'numpy>=1.15.4',
     'scipy>=1.1.0',
@@ -23,8 +23,8 @@ requirements = [
 ]
 
 requirements_dev = [
-    'tensorflow>=1.12.0',
-    'tensorflow_probability>=0.5.0',
+    'tensorflow>=1.14.0',
+    'tensorflow_probability>=0.7.0',
     'Pillow',
     'nose'
 ]
@@ -35,7 +35,7 @@ setup(
     version="0.0.2",
     url="https://github.com/jonbarron/robust_loss_pytorch",
     license='Apache 2.0',
-    author="Jon Barron",
+    author="Jonathan T. Barron",
     author_email="jonbarron@gmail.com",
     description="A General and Adaptive Robust Loss Function",
     long_description=read("README.md"),
