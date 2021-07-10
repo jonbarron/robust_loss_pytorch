@@ -1,0 +1,5 @@
+matplotlib
+mpmath
+numpy
+torch
+torch_dct
