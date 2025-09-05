@@ -314,9 +314,9 @@ class AdaptiveImageLossFunction(nn.Module):
     # If `color_space` == 'RGB', do nothing.
 
     # Reshape `x` from
-    #   (num_batches, width, height, num_channels) to
+    #   (num_batches, num_channels, height, width) to
     #   (num_batches * num_channels, width, height)
-    _, width, height, num_channels = x.shape
+    _, num_channels, width, height = x.shape
     x_stack = torch.reshape(x.permute(0, 3, 1, 2), (-1, width, height))
 
     # Turn each channel in `x_stack` into the spatial representation specified
